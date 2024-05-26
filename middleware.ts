@@ -148,7 +148,7 @@ function getDeploymentWithCookieBasedOnEnvVar(
   );
   const response = NextResponse.next();
 
-  if (config.stickySession) {
+  if (config.stickySession && req.cookies.get("__vdpl")?.value) {
     // do not overwrite the cookie if it already exists
     // so basically stop randomizing the deployment
     return response;
