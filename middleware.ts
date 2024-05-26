@@ -72,8 +72,7 @@ export async function middleware(req: NextRequest) {
   if (
     blueGreenConfig.stickySession &&
     existingDeployment &&
-    (existingDeployment === blueGreenConfig.blue.__vdpl ||
-      existingDeployment === blueGreenConfig.green.__vdpl)
+    isValidDeployment(blueGreenConfig, existingDeployment)
   ) {
     const existingDeploymentDomain =
       existingDeployment === blueGreenConfig.blue.__vdpl
@@ -121,6 +120,12 @@ function getNextResponse(req: NextRequest, domain: string) {
   });
 }
 
+function isValidDeployment(config: BlueGreenConfig, deployment: string) {
+  return (
+    deployment === config.blue.__vdpl || deployment === config.green.__vdpl
+  );
+}
+
 // Selects the deployment domain based on the blue-green configuration.
 function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
   const random = Math.random() * 100;
@@ -148,7 +153,14 @@ function getDeploymentWithCookieBasedOnEnvVar(
   );
   const response = NextResponse.next();
 
-  if (config.stickySession && req.cookies.get("__vdpl")?.value) {
+  // Retrieve the existing deployment ID from the cookie
+  const existingDeployment = req.cookies.get("__vdpl")?.value || "";
+
+  if (
+    config.stickySession &&
+    existingDeployment &&
+    isValidDeployment(config, existingDeployment)
+  ) {
     // do not overwrite the cookie if it already exists
     // so basically stop randomizing the deployment
     return response;
