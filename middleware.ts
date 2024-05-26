@@ -100,7 +100,7 @@ export async function middleware(req: NextRequest) {
   }
   // The selected deployment domain is the same as the one serving the request.
   if (servingDeploymentDomain === selectedDeploymentDomain) {
-    return getDeploymentWithCookieBasedOnEnvVar(req);
+    return getDeploymentWithCookieBasedOnEnvVar(req, blueGreenConfig);
   }
   return getNextResponse(req, selectedDeploymentDomain);
 }
