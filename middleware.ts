@@ -29,10 +29,24 @@ interface BlueGreenConfig {
 }
 
 export async function middleware(req: NextRequest) {
+  if (!process.env.EDGE_CONFIG) {
+    console.warn("EDGE_CONFIG env variable not set. Skipping blue-green.");
+    return NextResponse.next();
+  }
+
+  // Get the blue-green configuration from Edge Config.
+  const blueGreenConfig = await get<BlueGreenConfig>(
+    "blue-green-configuration"
+  );
+  if (!blueGreenConfig) {
+    console.warn("No blue-green configuration found");
+    return NextResponse.next();
+  }
+
   // Skip if the middleware has already run.
   // this check needs to be done before the rest of the logic in order to add the cookie
   if (req.headers.get("x-deployment-override")) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    return getDeploymentWithCookieBasedOnEnvVar(req, blueGreenConfig);
   }
 
   if (
@@ -48,20 +62,6 @@ export async function middleware(req: NextRequest) {
     // Skip if the request is coming from Vercel's deployment system.
     /vercel/i.test(req.headers.get("user-agent") || "")
   ) {
-    return NextResponse.next();
-  }
-
-  if (!process.env.EDGE_CONFIG) {
-    console.warn("EDGE_CONFIG env variable not set. Skipping blue-green.");
-    return NextResponse.next();
-  }
-
-  // Get the blue-green configuration from Edge Config.
-  const blueGreenConfig = await get<BlueGreenConfig>(
-    "blue-green-configuration"
-  );
-  if (!blueGreenConfig) {
-    console.warn("No blue-green configuration found");
     return NextResponse.next();
   }
 
@@ -100,7 +100,7 @@ export async function middleware(req: NextRequest) {
   }
   // The selected deployment domain is the same as the one serving the request.
   if (servingDeploymentDomain === selectedDeploymentDomain) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    return getDeploymentWithCookieBasedOnEnvVar(req);
   }
   return getNextResponse(req, selectedDeploymentDomain);
 }
@@ -138,12 +138,22 @@ function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
   return selected;
 }
 
-function getDeploymentWithCookieBasedOnEnvVar() {
+function getDeploymentWithCookieBasedOnEnvVar(
+  req: NextRequest,
+  config: BlueGreenConfig
+) {
   console.log(
     "Setting cookie based on env var",
     process.env.VERCEL_DEPLOYMENT_ID
   );
   const response = NextResponse.next();
+
+  if (config.stickySession) {
+    // do not overwrite the cookie if it already exists
+    // so basically stop randomizing the deployment
+    return response;
+  }
+
   // We need to set this cookie because next.js does not do this by default, but we do want
   // the deployment choice to survive a client-side navigation.
   // set for the green deployment (production == green == VERCEL_DEPLOYMENT_ID)
