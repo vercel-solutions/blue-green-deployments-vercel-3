@@ -127,8 +127,8 @@ function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
 
   const selected =
     random < blueGreenConfig.trafficGreenPercent
-      ? blueGreenConfig.deploymentDomainGreen
-      : blueGreenConfig.deploymentDomainBlue || process.env.VERCEL_URL;
+      ? blueGreenConfig.green.deploymentUrl
+      : blueGreenConfig.blue.deploymentUrl || process.env.VERCEL_URL;
   if (!selected) {
     console.error("Blue green configuration error", blueGreenConfig);
   }
