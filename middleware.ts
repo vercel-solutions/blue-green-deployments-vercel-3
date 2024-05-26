@@ -16,13 +16,21 @@ export const config = {
 
 // Configuration stored in Edge Config.
 interface BlueGreenConfig {
-  deploymentDomainBlue: string;
-  deploymentDomainGreen: string;
+  blue: {
+    __vdpl: string;
+    deploymentUrl: string;
+  };
+  green: {
+    __vdpl: string;
+    deploymentUrl: string;
+  };
   trafficGreenPercent: number;
+  stickySession: boolean;
 }
 
 export async function middleware(req: NextRequest) {
   // Skip if the middleware has already run.
+  // this check needs to be done before the rest of the logic in order to add the cookie
   if (req.headers.get("x-deployment-override")) {
     return getDeploymentWithCookieBasedOnEnvVar();
   }
@@ -56,6 +64,29 @@ export async function middleware(req: NextRequest) {
     console.warn("No blue-green configuration found");
     return NextResponse.next();
   }
+
+  // Retrieve the existing deployment ID from the cookie
+  const existingDeployment = req.cookies.get("__vdpl")?.value || "";
+
+  // If there's an existing deployment and it's a valid domain, serve from it
+  if (
+    blueGreenConfig.stickySession &&
+    existingDeployment &&
+    (existingDeployment === blueGreenConfig.blue.__vdpl ||
+      existingDeployment === blueGreenConfig.green.__vdpl)
+  ) {
+    const existingDeploymentDomain =
+      existingDeployment === blueGreenConfig.blue.__vdpl
+        ? blueGreenConfig.blue.deploymentUrl
+        : blueGreenConfig.green.deploymentUrl;
+
+    console.info(
+      "Serving from existing deployment domain:",
+      existingDeploymentDomain
+    );
+    return getNextResponse(req, existingDeploymentDomain);
+  }
+
   const servingDeploymentDomain = process.env.VERCEL_URL;
   const selectedDeploymentDomain =
     selectBlueGreenDeploymentDomain(blueGreenConfig);
@@ -71,15 +102,19 @@ export async function middleware(req: NextRequest) {
   if (servingDeploymentDomain === selectedDeploymentDomain) {
     return getDeploymentWithCookieBasedOnEnvVar();
   }
+  return getNextResponse(req, selectedDeploymentDomain);
+}
+
+function getNextResponse(req: NextRequest, domain: string) {
   // Fetch the HTML document from the selected deployment domain and return it to the user.
   const headers = new Headers(req.headers);
-  headers.set("x-deployment-override", selectedDeploymentDomain);
+  headers.set("x-deployment-override", domain);
   headers.set(
     "x-vercel-protection-bypass",
     process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "unknown"
   );
   const url = new URL(req.url);
-  url.hostname = selectedDeploymentDomain;
+  url.hostname = domain;
   return fetch(url, {
     headers,
     redirect: "manual",
