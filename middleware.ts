@@ -47,12 +47,13 @@ export async function middleware(req: NextRequest) {
   }
   // Skip if the middleware has already run.
   if (req.headers.get("x-deployment-override")) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    return getDeploymentWithCookieBasedOnEnvVar(req);
   }
   if (!process.env.EDGE_CONFIG) {
     console.warn("EDGE_CONFIG env variable not set. Skipping blue-green.");
     return NextResponse.next();
   }
+
   // Get the blue-green configuration from Edge Config.
   const blueGreenConfig = await get<BlueGreenConfig>(
     "blue-green-configuration"
@@ -74,7 +75,7 @@ export async function middleware(req: NextRequest) {
   }
   // The selected deployment domain is the same as the one serving the request.
   if (servingDeploymentDomain === selectedDeploymentDomain) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    return getDeploymentWithCookieBasedOnEnvVar(req);
   }
   // Fetch the HTML document from the selected deployment domain and return it to the user.
   const headers = new Headers(req.headers);
@@ -108,18 +109,22 @@ function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
   return selected;
 }
 
-function getDeploymentWithCookieBasedOnEnvVar() {
+function getDeploymentWithCookieBasedOnEnvVar(req: NextRequest) {
   console.log(
     "Setting cookie based on env var",
     process.env.VERCEL_DEPLOYMENT_ID
   );
   const response = NextResponse.next();
-  // We need to set this cookie because next.js does not do this by default, but we do want
-  // the deployment choice to survive a client-side navigation.
-  response.cookies.set("__vdpl", process.env.VERCEL_DEPLOYMENT_ID || "", {
-    sameSite: "strict",
-    httpOnly: true,
-    maxAge: 60 * 60 * 24, // 24 hours
-  });
+  // we only want to set the cookie with correct deployment id if we are in a deployment
+  if (req.headers.get("x-deployment-override")) {
+    // We need to set this cookie because next.js does not do this by default, but we do want
+    // the deployment choice to survive a client-side navigation.
+    response.cookies.set("__vdpl", process.env.VERCEL_DEPLOYMENT_ID || "", {
+      sameSite: "strict",
+      httpOnly: true,
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
+  }
+
   return response;
 }
