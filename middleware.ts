@@ -22,6 +22,11 @@ interface BlueGreenConfig {
 }
 
 export async function middleware(req: NextRequest) {
+  // Skip if the middleware has already run.
+  if (req.headers.get("x-deployment-override")) {
+    return getDeploymentWithCookieBasedOnEnvVar();
+  }
+
   if (
     // We don't want to run blue-green during development.
     process.env.NODE_ENV !== "production" ||
@@ -38,10 +43,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Skip if the middleware has already run.
-  if (req.headers.get("x-deployment-override")) {
-    return getDeploymentWithCookieBasedOnEnvVar();
-  }
   if (!process.env.EDGE_CONFIG) {
     console.warn("EDGE_CONFIG env variable not set. Skipping blue-green.");
     return NextResponse.next();
@@ -110,6 +111,7 @@ function getDeploymentWithCookieBasedOnEnvVar() {
   const response = NextResponse.next();
   // We need to set this cookie because next.js does not do this by default, but we do want
   // the deployment choice to survive a client-side navigation.
+  // set for the green deployment (production == green == VERCEL_DEPLOYMENT_ID)
   response.cookies.set("__vdpl", process.env.VERCEL_DEPLOYMENT_ID || "", {
     sameSite: "strict",
     httpOnly: true,
