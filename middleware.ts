@@ -22,32 +22,25 @@ interface BlueGreenConfig {
 }
 
 export async function middleware(req: NextRequest) {
-  // We don't want to run blue-green during development.
-  if (process.env.NODE_ENV !== "production") {
+  if (
+    // We don't want to run blue-green during development.
+    process.env.NODE_ENV !== "production" ||
+    // We skip blue-green when accesing from deployment urls
+    req.nextUrl.hostname === process.env.VERCEL_URL ||
+    // We only run blue-green deployments when accesing from production urls
+    req.nextUrl.hostname !== process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+    // We only want to run blue-green for GET requests that are for HTML documents.
+    req.method !== "GET" ||
+    req.headers.get("sec-fetch-dest") !== "document" ||
+    // Skip if the request is coming from Vercel's deployment system.
+    /vercel/i.test(req.headers.get("user-agent") || "")
+  ) {
     return NextResponse.next();
   }
-  // We skip blue-green when accesing from deployment urls
-  if (req.nextUrl.hostname === process.env.VERCEL_URL) {
-    return NextResponse.next();
-  }
-  // We only want to run blue-green for GET requests that are for HTML documents.
-  if (req.method !== "GET") {
-    return NextResponse.next();
-  }
-  // We only run blue-green deployments when accesing from production urls
-  if (req.nextUrl.hostname !== process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return NextResponse.next();
-  }
-  if (req.headers.get("sec-fetch-dest") !== "document") {
-    return NextResponse.next();
-  }
-  // Skip if the request is coming from Vercel's deployment system.
-  if (/vercel/i.test(req.headers.get("user-agent") || "")) {
-    return NextResponse.next();
-  }
+
   // Skip if the middleware has already run.
   if (req.headers.get("x-deployment-override")) {
-    return getDeploymentWithCookieBasedOnEnvVar(req);
+    return getDeploymentWithCookieBasedOnEnvVar();
   }
   if (!process.env.EDGE_CONFIG) {
     console.warn("EDGE_CONFIG env variable not set. Skipping blue-green.");
@@ -75,7 +68,7 @@ export async function middleware(req: NextRequest) {
   }
   // The selected deployment domain is the same as the one serving the request.
   if (servingDeploymentDomain === selectedDeploymentDomain) {
-    return getDeploymentWithCookieBasedOnEnvVar(req);
+    return getDeploymentWithCookieBasedOnEnvVar();
   }
   // Fetch the HTML document from the selected deployment domain and return it to the user.
   const headers = new Headers(req.headers);
@@ -109,22 +102,19 @@ function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
   return selected;
 }
 
-function getDeploymentWithCookieBasedOnEnvVar(req: NextRequest) {
+function getDeploymentWithCookieBasedOnEnvVar() {
   console.log(
     "Setting cookie based on env var",
     process.env.VERCEL_DEPLOYMENT_ID
   );
   const response = NextResponse.next();
-  // we only want to set the cookie with correct deployment id if we are in a deployment
-  if (req.headers.get("x-deployment-override")) {
-    // We need to set this cookie because next.js does not do this by default, but we do want
-    // the deployment choice to survive a client-side navigation.
-    response.cookies.set("__vdpl", process.env.VERCEL_DEPLOYMENT_ID || "", {
-      sameSite: "strict",
-      httpOnly: true,
-      maxAge: 60 * 60 * 24, // 24 hours
-    });
-  }
+  // We need to set this cookie because next.js does not do this by default, but we do want
+  // the deployment choice to survive a client-side navigation.
+  response.cookies.set("__vdpl", process.env.VERCEL_DEPLOYMENT_ID || "", {
+    sameSite: "strict",
+    httpOnly: true,
+    maxAge: 60 * 60 * 24, // 24 hours
+  });
 
   return response;
 }
