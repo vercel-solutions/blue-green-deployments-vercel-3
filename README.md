@@ -1,3 +1,5 @@
+> This is a modified version to add support for sticky sessions while still using skew protection from the original blue green deployment template.
+
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-labs%2Fblue-green&project-name=blue-gree-on-vercel&repository-name=blue-gree-on-vercel&demo-title=Blue-Green%20deployments%20on%20Vercel&demo-description=See%20how%20Vercel's%20Skew%20Protection%20feature%20enables%20production-ready%20blue-green%20deployments%20with%20just%20a%20few%20lines%20of%20code.&demo-url=https%3A%2F%2Fblue-green.vercel.rocks&demo-image=https%3A%2F%2Fvercel.com%2F_next%2Fimage%3Furl%3Dhttps%253A%252F%252Fimages.ctfassets.net%252Fe5382hct74si%252F4xnSnpCnkYCw6ZzZcCXVVv%252F5e0c6666fe0b9583f42e84d5493b75a5%252Fblue-green.png%26w%3D3840%26q%3D75%26dpl%3Ddpl_8ZzCwcUW4b6UdGfjetyMvumYaoqS)
 
 # Blue-Green deployments and canary deployments on Vercel
@@ -24,9 +26,16 @@ The blue-green deployment strategy is great for managing risk, giving you the ab
 ```json
 {
   "blue-green-configuration": {
-    "deploymentDomainBlue": "https://blue-green-61yvm4f5d.vercel.rocks",
-    "deploymentDomainGreen": "https://blue-green-nq2hvhtsv.vercel.rocks",
-    "trafficGreenPercent": 50
+    "blue": {
+      "__vdpl": "dpl_8f83sZwjiviZHTkYyoj4rioBKt44",
+      "deploymentUrl": "https://blue-green-deployments-vercel-3-co3zz7hez.vercel.app"
+    },
+    "green": {
+      "__vdpl": "dpl_HgR7pDqTvWTCT1FqxzM1fQv24481",
+      "deploymentUrl": "https://blue-green-deployments-vercel-3-kl8pe0r2z.vercel.app"
+    },
+    "trafficGreenPercent": 50,
+    "stickySession": true
   }
 }
 ```
