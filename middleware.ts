@@ -153,6 +153,8 @@ function getDeploymentWithCookieBasedOnEnvVar(
   );
   const response = NextResponse.next();
 
+  let __vdpl = process.env.VERCEL_DEPLOYMENT_ID || "";
+
   // Retrieve the existing deployment ID from the cookie
   const existingDeployment = req.cookies.get("__vdpl")?.value || "";
 
@@ -161,15 +163,15 @@ function getDeploymentWithCookieBasedOnEnvVar(
     existingDeployment &&
     isValidDeployment(config, existingDeployment)
   ) {
-    // do not overwrite the cookie if it already exists
+    // use the same deployment as before
     // so basically stop randomizing the deployment
-    return response;
+    __vdpl = existingDeployment;
   }
 
   // We need to set this cookie because next.js does not do this by default, but we do want
   // the deployment choice to survive a client-side navigation.
   // set for the green deployment (production == green == VERCEL_DEPLOYMENT_ID)
-  response.cookies.set("__vdpl", process.env.VERCEL_DEPLOYMENT_ID || "", {
+  response.cookies.set("__vdpl", __vdpl, {
     sameSite: "strict",
     httpOnly: true,
     maxAge: 60 * 60 * 24, // 24 hours
