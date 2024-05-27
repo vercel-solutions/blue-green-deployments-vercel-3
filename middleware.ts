@@ -104,16 +104,26 @@ export async function middleware(req: NextRequest) {
   return getNextResponse(req, selectedDeploymentDomain);
 }
 
+function formatDeploymentUrl(deploymentUrl: string) {
+  if (/^http/.test(deploymentUrl || "")) {
+    return new URL(deploymentUrl || "").hostname;
+  }
+  return deploymentUrl;
+}
+
 function getNextResponse(req: NextRequest, domain: string) {
+  // make sure always to use the hostname only
+  const formattedDomain = formatDeploymentUrl(domain);
+
   // Fetch the HTML document from the selected deployment domain and return it to the user.
   const headers = new Headers(req.headers);
-  headers.set("x-deployment-override", domain);
+  headers.set("x-deployment-override", formattedDomain);
   headers.set(
     "x-vercel-protection-bypass",
     process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "unknown"
   );
   const url = new URL(req.url);
-  url.hostname = domain;
+  url.hostname = formattedDomain;
   return fetch(url, {
     headers,
     redirect: "manual",
@@ -133,14 +143,12 @@ function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
   const selected =
     random < blueGreenConfig.trafficGreenPercent
       ? blueGreenConfig.green.deploymentUrl
-      : blueGreenConfig.blue.deploymentUrl || process.env.VERCEL_URL;
+      : blueGreenConfig.blue.deploymentUrl || process.env.VERCEL_URL || "";
   if (!selected) {
     console.error("Blue green configuration error", blueGreenConfig);
   }
-  if (/^http/.test(selected || "")) {
-    return new URL(selected || "").hostname;
-  }
-  return selected;
+
+  return formatDeploymentUrl(selected);
 }
 
 function getDeploymentWithCookieBasedOnEnvVar(
